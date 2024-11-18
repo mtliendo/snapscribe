@@ -75,7 +75,9 @@ backend.captionPicsUploadTrigger.resources.lambda.addToRolePolicy(
 backend.captionPicsUploadTrigger.resources.lambda.addToRolePolicy(
 	new PolicyStatement({
 		actions: ['bedrock:InvokeModel'],
-		resources: ['*'],
+		resources: [
+			'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0',
+		],
 	})
 )
 
