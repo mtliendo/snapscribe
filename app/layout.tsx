@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
 import '@aws-amplify/ui-react/styles.css'
-import ConfigureAmplifyClientSide from '@/components/configreAmplify'
+import ConfigureAmplifyClientSide from '@/components/configureAmplify'
 
 const geistSans = localFont({
 	src: './fonts/GeistVF.woff',

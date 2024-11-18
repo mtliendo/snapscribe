@@ -1,22 +1,77 @@
+import { captionPicsUploadTrigger } from './functions/uploadTrigger/resource'
+import { storage } from './storage/resource'
 import { defineBackend } from '@aws-amplify/backend'
 import { auth } from './auth/resource'
-import { storage } from './storage/resource'
-import { captionPicsUploadTrigger } from './functions/uploadTrigger/resource'
-import { PolicyStatement } from 'aws-cdk-lib/aws-iam'
 import {
 	CfnApi,
-	CfnApiKey,
 	CfnChannelNamespace,
 	AuthorizationType,
 } from 'aws-cdk-lib/aws-appsync'
+import { Policy, PolicyStatement } from 'aws-cdk-lib/aws-iam'
 
+/**
+ * @see https://docs.amplify.aws/react/build-a-backend/ to add storage, functions, and more
+ */
 const backend = defineBackend({
 	auth,
 	storage,
 	captionPicsUploadTrigger,
 })
 
+const customResources = backend.createStack('custom-resources-snapscribe')
+
+const cfnEventAPI = new CfnApi(customResources, 'cfnEventAPI', {
+	name: 'snapscribe-api',
+	eventConfig: {
+		authProviders: [
+			{ authType: AuthorizationType.IAM },
+			{
+				authType: AuthorizationType.USER_POOL,
+				cognitoConfig: {
+					awsRegion: customResources.region,
+					userPoolId: backend.auth.resources.userPool.userPoolId,
+				},
+			},
+		],
+		connectionAuthModes: [{ authType: AuthorizationType.USER_POOL }],
+		defaultPublishAuthModes: [{ authType: AuthorizationType.IAM }],
+		defaultSubscribeAuthModes: [{ authType: AuthorizationType.USER_POOL }],
+	},
+})
+
+const namespace = new CfnChannelNamespace(
+	customResources,
+	'cfnEventAPINamespace',
+	{
+		apiId: cfnEventAPI.attrApiId,
+		name: 'snapscribe',
+	}
+)
+
+//--------Policies----------
+
+//grant signed in users access to invoke the Event API
+backend.auth.resources.authenticatedUserIamRole.attachInlinePolicy(
+	new Policy(customResources, 'AppSyncEventPolicy', {
+		statements: [
+			new PolicyStatement({
+				actions: ['appsync:EventConnect', 'appsync:EventSubscribe'],
+				resources: [`${cfnEventAPI.attrApiArn}/*`, `${cfnEventAPI.attrApiArn}`],
+			}),
+		],
+	})
+)
+
+//grand the function access to publish an event
+
 //grant the function access to invoke:model
+backend.captionPicsUploadTrigger.resources.lambda.addToRolePolicy(
+	new PolicyStatement({
+		actions: ['appsync:EventPublish'],
+		resources: [`${cfnEventAPI.attrApiArn}/*`, `${cfnEventAPI.attrApiArn}`],
+	})
+)
+
 backend.captionPicsUploadTrigger.resources.lambda.addToRolePolicy(
 	new PolicyStatement({
 		actions: ['bedrock:InvokeModel'],
@@ -24,53 +79,27 @@ backend.captionPicsUploadTrigger.resources.lambda.addToRolePolicy(
 	})
 )
 
-const customResources = backend.createStack('custom-resources-snapscribe-test')
-
-const cfnEventAPI = new CfnApi(customResources, 'cfnEventAPI', {
-	name: 'cfnEventAPITest',
-	eventConfig: {
-		authProviders: [{ authType: AuthorizationType.API_KEY }],
-		connectionAuthModes: [{ authType: AuthorizationType.API_KEY }],
-		defaultPublishAuthModes: [{ authType: AuthorizationType.API_KEY }],
-		defaultSubscribeAuthModes: [{ authType: AuthorizationType.API_KEY }],
-	},
-})
-
-new CfnChannelNamespace(customResources, 'cfnEventAPINamespace', {
-	apiId: cfnEventAPI.attrApiId,
-	name: 'default',
-})
-
-const cfnApiKey = new CfnApiKey(customResources, 'cfnEventAPIKey', {
-	apiId: cfnEventAPI.attrApiId,
-	description: 'cfnEventAPIKeyTest',
-})
-
+// ---------Lambda Env Vars---------
 backend.captionPicsUploadTrigger.addEnvironment(
 	'EVENT_API_URL',
 	`https://${cfnEventAPI.getAtt('Dns.Http').toString()}/event`
 )
 
 backend.captionPicsUploadTrigger.addEnvironment(
-	'EVENT_API_KEY',
-	cfnApiKey.attrApiKey
-)
-backend.captionPicsUploadTrigger.addEnvironment(
 	'EVENT_API_REGION',
 	customResources.region
 )
 backend.captionPicsUploadTrigger.addEnvironment(
 	'EVENT_API_NAMESPACE',
-	'default'
+	namespace.name
 )
 
 backend.addOutput({
 	custom: {
 		events: {
 			url: `https://${cfnEventAPI.getAtt('Dns.Http').toString()}/event`,
-			api_key: cfnApiKey.attrApiKey,
 			aws_region: customResources.region,
-			default_authorization_type: AuthorizationType.API_KEY,
+			default_authorization_type: AuthorizationType.USER_POOL,
 		},
 	},
 })

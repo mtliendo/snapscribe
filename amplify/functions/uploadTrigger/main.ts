@@ -13,16 +13,33 @@ import { env } from '$amplify/env/captionPicsUploadTrigger'
 import type { Handler } from 'aws-lambda'
 const client = new BedrockRuntimeClient()
 
-Amplify.configure({
-	API: {
-		Events: {
-			endpoint: env.EVENT_API_URL,
-			region: env.EVENT_API_REGION,
-			defaultAuthMode: 'apiKey',
-			apiKey: env.EVENT_API_KEY,
+Amplify.configure(
+	{
+		API: {
+			Events: {
+				endpoint: env.EVENT_API_URL,
+				region: env.EVENT_API_REGION,
+				defaultAuthMode: 'iam',
+			},
 		},
 	},
-})
+	{
+		Auth: {
+			credentialsProvider: {
+				getCredentialsAndIdentityId: async () => ({
+					credentials: {
+						accessKeyId: env.AWS_ACCESS_KEY_ID,
+						secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+						sessionToken: env.AWS_SESSION_TOKEN,
+					},
+				}),
+				clearCredentialsAndIdentityId: () => {
+					/* noop */
+				},
+			},
+		},
+	}
+)
 
 export const handler: Handler = async (event) => {
 	// get the imgKey key from the event
@@ -60,23 +77,34 @@ export const handler: Handler = async (event) => {
 	}
 
 	try {
+		await events.post(`${env.EVENT_API_NAMESPACE}/caption`, {
+			caption: 'Message received! Analyzing image...',
+		})
 		const command = new ConverseCommand(input)
 		const response = await client.send(command)
-		await events.post('default/caption', {
-			caption: 'creating',
-		})
 		if (response.output?.message?.content) {
 			const caption = response.output.message.content[0].text
-			await events.post('default/caption', {
+			await events.post(`${env.EVENT_API_NAMESPACE}/caption`, {
 				caption: caption || 'sorry, problem creating caption.',
 			})
+
+			return {
+				statusCode: 200,
+				body: JSON.stringify({ message: 'Function executed successfully!' }),
+			}
 		}
 	} catch (error) {
 		console.error('Error:', error)
-	}
+		await events.post(`${env.EVENT_API_NAMESPACE}/caption`, {
+			caption: 'error. Try again.',
+		})
 
-	return {
-		statusCode: 200,
-		body: JSON.stringify({ message: 'Function executed successfully!' }),
+		return {
+			statusCode: 500,
+			body: JSON.stringify({
+				error: 'Problem with function execution',
+				msg: error,
+			}),
+		}
 	}
 }

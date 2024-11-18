@@ -23,7 +23,7 @@ const CaptionPage = ({ signOut }: CaptionPageProps) => {
 
 	useEffect(() => {
 		const setupSubscription = async () => {
-			const channel = await events.connect('default/caption')
+			const channel = await events.connect('snapscribe/caption')
 
 			channel.subscribe({
 				next: (data) => {
