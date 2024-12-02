@@ -33,9 +33,7 @@ Amplify.configure(
 						sessionToken: env.AWS_SESSION_TOKEN,
 					},
 				}),
-				clearCredentialsAndIdentityId: () => {
-					/* noop */
-				},
+				clearCredentialsAndIdentityId: () => {},
 			},
 		},
 	}
