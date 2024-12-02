@@ -6,13 +6,12 @@ import { events } from 'aws-amplify/api'
 import ThinkingIndicator from '@/components/thinkingIndicator'
 import Footer from '@/components/footer'
 import AuthNavbar from '@/components/authNavbar'
-import { withAuthenticator } from '@aws-amplify/ui-react'
+import {
+	withAuthenticator,
+	WithAuthenticatorProps,
+} from '@aws-amplify/ui-react'
 
-type CaptionPageProps = {
-	signOut: () => void
-}
-
-const CaptionPage = ({ signOut }: CaptionPageProps) => {
+const CaptionPage = ({ signOut }: WithAuthenticatorProps) => {
 	const [description, setDescription] = useState('')
 	const [isThinking, setIsThinking] = useState(false)
 

@@ -5,7 +5,8 @@ import { Button } from './ui/button'
 import Link from 'next/link'
 
 type AuthNavbarProps = {
-	handleSignout: () => void
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	handleSignout: any
 }
 function AuthNavbar({ handleSignout }: AuthNavbarProps) {
 	return (
